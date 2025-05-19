@@ -1,0 +1,242 @@
+import React, { useState, useRef, useEffect } from "react";
+import html2canvas from "html2canvas";
+import { motion } from "framer-motion";
+
+let openai = null;
+
+const initializeOpenAI = async () => {
+  try {
+    const module = await import("openai");
+    const OpenAI = module.default;
+    const apiKey = import.meta.env?.VITE_OPENAI_API_KEY || "";
+
+    if (!apiKey) {
+      console.warn("VITE_OPENAI_API_KEY is not defined. OpenAI integration will not work.");
+      return;
+    }
+
+    openai = new OpenAI({ apiKey });
+  } catch (err) {
+    console.error("OpenAI module could not be loaded or API key is missing.", err);
+  }
+};
+
+const formats = [
+  { name: "YouTube", aspectRatio: "16 / 9" },
+  { name: "Shorts", aspectRatio: "9 / 16" },
+  { name: "Reels", aspectRatio: "1 / 1" },
+];
+
+const templates = [
+  {
+    name: "Bold Title",
+    bgColor: "#1e293b",
+    textColor: "#fbbf24",
+    fontSize: "3rem",
+  },
+  {
+    name: "Clean Blue",
+    bgColor: "#3b82f6",
+    textColor: "#ffffff",
+    fontSize: "2.5rem",
+  },
+  {
+    name: "Modern Gradient",
+    bgColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    textColor: "#ffffff",
+    fontSize: "2.8rem",
+  },
+];
+
+const AdBanner = () => {
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js";
+    script.async = true;
+    script.setAttribute("data-ad-client", "ca-app-pub-1675444505375879~8678917820"); // 
+    document.body.appendChild(script);
+
+    try {
+      (window.adsbygoogle = window.adsbygoogle || []).push({});
+    } catch (e) {
+      console.error("Adsense error", e);
+    }
+  }, []);
+
+  return (
+    <ins
+      className="adsbygoogle"
+      style={{ display: "block", textAlign: "center" }}
+      data-ad-client="ca-app-pub-1675444505375879~8678917820" // 
+      data-ad-slot="ca-app-pub-1675444505375879/8683605492" // 
+      data-ad-format="auto"
+      data-full-width-responsive="true"
+    />
+  );
+};
+
+function ThumbnailGenerator() {
+  const [title, setTitle] = useState("Your Awesome Video");
+  const [bgColor, setBgColor] = useState("#1e293b");
+  const [textColor, setTextColor] = useState("#fbbf24");
+  const [fontSize, setFontSize] = useState("3rem");
+  const [image, setImage] = useState(null);
+  const [format, setFormat] = useState(formats[0].aspectRatio);
+  const canvasRef = useRef();
+
+  useEffect(() => {
+    initializeOpenAI();
+  }, []);
+
+  const handleImageDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      setImage(URL.createObjectURL(file));
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImage(URL.createObjectURL(file));
+    }
+  };
+
+  const downloadThumbnail = async () => {
+    const canvas = await html2canvas(canvasRef.current);
+    const link = document.createElement("a");
+    link.download = "thumbnail.png";
+    link.href = canvas.toDataURL();
+    link.click();
+  };
+
+  const generateTitle = async () => {
+    if (!openai) {
+      alert("OpenAI API is not available. Please check your API key configuration.");
+      return;
+    }
+
+    try {
+      const res = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "user",
+            content: "Generate a catchy YouTube video title about technology",
+          },
+        ],
+        max_tokens: 10,
+      });
+      setTitle(res.choices[0].message.content.trim());
+    } catch (error) {
+      console.error("Failed to fetch AI-generated title:", error);
+    }
+  };
+
+  const applyTemplate = (template) => {
+    setBgColor(template.bgColor);
+    setTextColor(template.textColor);
+    setFontSize(template.fontSize);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6 flex flex-col items-center">
+      <h1 className="text-4xl font-bold mb-6">Auto Thumbnail Generator</h1>
+
+      <AdBanner />
+
+      <div className="flex flex-col gap-4 w-full max-w-xl">
+        <input
+          type="text"
+          placeholder="Enter thumbnail title"
+          className="p-2 rounded border"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+
+        <button
+          onClick={generateTitle}
+          className="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600"
+        >
+          Auto Generate Title
+        </button>
+
+        <input type="file" onChange={handleImageUpload} />
+        <div
+          onDrop={handleImageDrop}
+          onDragOver={(e) => e.preventDefault()}
+          className="p-4 border-2 border-dashed rounded-md text-center"
+        >
+          Drag and drop an image here
+        </div>
+
+        <div className="flex gap-4">
+          <label>BG Color</label>
+          <input type="color" value={bgColor} onChange={(e) => setBgColor(e.target.value)} />
+          <label>Text Color</label>
+          <input type="color" value={textColor} onChange={(e) => setTextColor(e.target.value)} />
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          {templates.map((t, i) => (
+            <button
+              key={i}
+              onClick={() => applyTemplate(t)}
+              className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-2 flex-wrap">
+          {formats.map((f, i) => (
+            <button
+              key={i}
+              onClick={() => setFormat(f.aspectRatio)}
+              className="bg-purple-200 px-3 py-1 rounded hover:bg-purple-300"
+            >
+              {f.name}
+            </button>
+          ))}
+        </div>
+
+        <motion.div
+          ref={canvasRef}
+          className="w-full relative overflow-hidden rounded-xl shadow-lg border"
+          style={{ aspectRatio: format, background: bgColor }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          {image && (
+            <img
+              src={image}
+              alt="Thumbnail"
+              className="w-full h-full object-cover absolute top-0 left-0 opacity-60"
+            />
+          )}
+          <motion.div
+            className="absolute bottom-6 left-6 right-6 font-bold"
+            style={{ color: textColor, fontSize }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+          >
+            {title}
+          </motion.div>
+        </motion.div>
+
+        <button
+          onClick={downloadThumbnail}
+          className="bg-green-500 text-white py-2 px-4 rounded hover:bg-green-600"
+        >
+          Download Thumbnail
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default ThumbnailGenerator;
